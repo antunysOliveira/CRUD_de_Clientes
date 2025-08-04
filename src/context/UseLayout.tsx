@@ -7,23 +7,22 @@ import {
 import { Outlet } from 'react-router-dom';
 import LoadingComponent from '@/components/Loading/Loading';
 import ErrorModal from '@/components/errorModal/errorModal';
+import { useQueryClient } from '@tanstack/react-query';
 
-// SUGESTÃO: Crie uma interface para o usuário para ter um código mais seguro
 interface User {
     id: string;
     name: string;
     email: string;
-    // Adicione outras propriedades que seu objeto de usuário possa ter
 }
 
 interface LayoutProps {
     token?: string;
-    user?: User; // Tipagem mais forte para o usuário
+    user?: User;
     fullLoading: boolean;
     error: any
     setError: (value: any) => void
     setToken: (value: string) => void;
-    setUser: (user: User | undefined) => void; // Ação de salvar o usuário
+    setUser: (user: User | undefined) => void;
     setFullLoading: (value: boolean) => void;
     login: (token: string) => void;
     logout: () => void;
@@ -42,8 +41,7 @@ function useProvideLayout(): LayoutProps {
         const storedUser = window.localStorage.getItem('user');
         return storedUser ? JSON.parse(storedUser) : undefined;
     });
-    const [error, setError] = useState<any>();
-
+    const [error, setError] = useState<any>(); const queryClient = useQueryClient();
     function setUser(newUser: User | undefined) {
         if (newUser) {
             window.localStorage.setItem('user', JSON.stringify(newUser));
@@ -59,6 +57,7 @@ function useProvideLayout(): LayoutProps {
     }
 
     function logout() {
+        queryClient.clear();
         window.localStorage.removeItem('token');
         window.localStorage.removeItem('user');
         setToken(undefined);

@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
+
 import Api from "@/services/api";
 import CreateClientModal from '@/components/createClientModal/creatClient';
-import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmationModal from '@/components/confirmationModal/confirmationModal';
 import EditClientModal from '@/components/editClientModal/editClientModal';
 
@@ -13,26 +15,62 @@ interface Client {
   company: string;
 }
 
+async function fetchAllClients(): Promise<Client[]> {
+  const resp = await Api.ListClients();
+  return resp?.data?.clients || [];
+}
+
 export default function App() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
+
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
   useEffect(() => {
-    fetchClients();
-  }, []);
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
 
-  useEffect(() => {
-    if (!loading && !isCreateModalOpen && !isEditModalOpen) {
-      fetchClients();
-    }
-  }, [isCreateModalOpen, isEditModalOpen]);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchTerm]);
+
+  const queryClient = useQueryClient();
+
+  const {
+    data: allClients,
+    isLoading,
+    error,
+  } = useQuery<Client[], Error>({
+    queryKey: ['clients'],
+    queryFn: fetchAllClients,
+  });
+
+  const filteredClients = useMemo(() => {
+    if (!allClients) return [];
+    if (!debouncedSearchTerm) return allClients;
+
+    const term = debouncedSearchTerm.toLowerCase();
+    return allClients.filter(client =>
+      client.name.toLowerCase().includes(term) ||
+      client.email.toLowerCase().includes(term) ||
+      (client.phone || "").toLowerCase().includes(term) ||
+      (client.company || "").toLowerCase().includes(term)
+    );
+  }, [allClients, debouncedSearchTerm]);
+
+  const deleteClientMutation = useMutation({
+    mutationFn: (clientId: string) => Api.DeleteClient(clientId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      handleCloseDeleteModal();
+    },
+  });
 
   const handleOpenDeleteModal = (clientId: string) => {
     setClientToDelete(clientId);
@@ -42,6 +80,12 @@ export default function App() {
   const handleCloseDeleteModal = () => {
     setDeleteModalOpen(false);
     setClientToDelete(null);
+  };
+
+  const handleConfirmDelete = () => {
+    if (clientToDelete) {
+      deleteClientMutation.mutate(clientToDelete);
+    }
   };
 
   const handleOpenEditModal = (client: Client) => {
@@ -54,86 +98,10 @@ export default function App() {
     setClientToEdit(null);
   };
 
-  async function fetchClients() {
-    try {
-      setLoading(true);
-      setError(null);
-      const resp = await Api.ListClients();
-      setClients(resp?.data?.clients || []);
-    } catch (error: any) {
-      setError(
-        error?.response?.data?.message ||
-        "Não foi possível carregar os clientes. Tente novamente mais tarde."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleConfirmDelete() {
-    if (!clientToDelete) {
-      setError("ID do cliente não encontrado para exclusão.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      await Api.DeleteClient(clientToDelete);
-      handleCloseDeleteModal();
-      fetchClients();
-
-    } catch (error: any) {
-      setError(
-        error?.response?.data?.message ||
-        "Não foi possível excluir o cliente. Tente novamente."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const filteredClients = clients.filter(client => {
-    const term = searchTerm.toLowerCase();
-    return (
-      client.name.toLowerCase().includes(term) ||
-      client.email.toLowerCase().includes(term) ||
-      (client.phone || "").toLowerCase().includes(term) ||
-      (client.company || "").toLowerCase().includes(term)
-    );
-  });
-
-  const pageVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.2
-      }
-    },
-  };
-
-  const headerVariants = {
-    hidden: { opacity: 0, y: -20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-  };
-
-  const tableContainerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.05,
-      },
-    },
-  };
-
-  const tableRowVariants = {
-    hidden: { opacity: 0, x: -10 },
-    visible: { opacity: 1, x: 0 },
-  };
-
+  const pageVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.2 } } };
+  const headerVariants = { hidden: { opacity: 0, y: -20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } };
+  const tableContainerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.05 } } };
+  const tableRowVariants = { hidden: { opacity: 0, x: -10 }, visible: { opacity: 1, x: 0 } };
 
   return (
     <motion.div
@@ -164,26 +132,29 @@ export default function App() {
         </motion.div>
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
           <div className="p-6">
-            {loading && (
-              <div className="text-center py-10 text-gray-500 dark:text-gray-400">
-                Carregando clientes...
-              </div>
-            )}
-            {error && (
-              <div className="text-center py-4 text-red-600 bg-red-100 dark:bg-red-900/20 rounded-md">
-                {error}
-              </div>
-            )}
             <div className="mb-4">
               <input
                 type="text"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e?.target?.value)}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar por nome, e-mail, telefone ou empresa..."
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white transition-colors duration-300"
               />
             </div>
-            {!loading && !error && (
+
+            {isLoading && (
+              <div className="text-center py-10 text-gray-500 dark:text-gray-400">
+                Carregando clientes...
+              </div>
+            )}
+
+            {error && (
+              <div className="text-center py-4 text-red-600 bg-red-100 dark:bg-red-900/20 rounded-md">
+                {error.message || "Não foi possível carregar os clientes."}
+              </div>
+            )}
+
+            {!isLoading && !error && (
               <motion.div
                 className="overflow-x-auto"
                 variants={tableContainerVariants}
@@ -201,42 +172,48 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredClients.map((client: any) => (
-                      <motion.tr
-                        key={client.id}
-                        className="border-b transition duration-300 ease-in-out hover:bg-gray-100 dark:border-neutral-700 dark:hover:bg-gray-700"
-                        variants={tableRowVariants}
-                        layout
-                      >
-                        <td className="whitespace-nowrap px-3 py-4 font-medium">{client?.name || "..."}</td>
-                        <td className="whitespace-nowrap px-3 py-4">{client?.email || "..."}</td>
-                        <td className="whitespace-nowrap px-3 py-4">{client?.phone || "..."}</td>
-                        <td className="whitespace-nowrap px-3 py-4">{client?.company || "..."}</td>
-                        <td className="whitespace-nowrap px-3 py-4">
-                          <div className='flex space-x-1'>
-                            <button
-                              onClick={() => handleOpenDeleteModal(client?.id)}
-                              className='bg-red-600 text-white px-2 font-semibold text-[10px] py-1 rounded-2xl'
-                            >
-                              deletar
-                            </button>
-                            <button
-                              onClick={() => handleOpenEditModal(client)}
-                              className='bg-white text-black font-semibold px-2 text-[10px] py-1 rounded-2xl'
-                            >
-                              Editar
-                            </button>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
+                    <AnimatePresence>
+                      {filteredClients.map((client) => (
+                        <motion.tr
+                          key={client.id}
+                          className="border-b transition duration-300 ease-in-out hover:bg-gray-100 dark:border-neutral-700 dark:hover:bg-gray-700"
+                          variants={tableRowVariants}
+                          initial="hidden"
+                          animate="visible"
+                          exit="hidden"
+                          layout
+                        >
+                          <td className="whitespace-nowrap px-3 py-4 font-medium">{client.name || "..."}</td>
+                          <td className="whitespace-nowrap px-3 py-4">{client.email || "..."}</td>
+                          <td className="whitespace-nowrap px-3 py-4">{client.phone || "..."}</td>
+                          <td className="whitespace-nowrap px-3 py-4">{client.company || "..."}</td>
+                          <td className="whitespace-nowrap px-3 py-4">
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => handleOpenDeleteModal(client.id)}
+                                className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white transition-all duration-200 ease-in-out hover:bg-red-700 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                              >
+                                Deletar
+                              </button>
+                              <button
+                                onClick={() => handleOpenEditModal(client)}
+                                className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-semibold text-gray-700 transition-all duration-200 ease-in-out hover:bg-gray-200 hover:text-black active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                              >
+                                Editar
+                              </button>
+                            </div>
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </AnimatePresence>
                   </tbody>
                 </table>
               </motion.div>
             )}
-            {!loading && filteredClients.length === 0 && (
+
+            {!isLoading && filteredClients.length === 0 && (
               <div className="text-center py-10 text-gray-500 dark:text-gray-400">
-                {searchTerm
+                {debouncedSearchTerm
                   ? "Nenhum cliente encontrado para sua busca."
                   : "Nenhum cliente cadastrado. Que tal adicionar um novo?"
                 }
@@ -245,20 +222,20 @@ export default function App() {
           </div>
         </div>
       </div>
+
       <AnimatePresence>
-        {/* //! modal de criação de cliente */}
         {isCreateModalOpen && (
           <CreateClientModal
             onClose={() => setCreateModalOpen(false)}
           />
         )}
-        {/* //! modal para excluir cliente */}
         {isDeleteModalOpen && (
           <ConfirmationModal
             isOpen={isDeleteModalOpen}
             onClose={handleCloseDeleteModal}
             onConfirm={handleConfirmDelete}
             title="Confirmar Exclusão"
+            isConfirming={deleteClientMutation.isPending}
           >
             <p>
               Você tem certeza que deseja excluir este cliente?
@@ -267,7 +244,6 @@ export default function App() {
             </p>
           </ConfirmationModal>
         )}
-        {/* //! modal para editar cliente */}
         {isEditModalOpen && clientToEdit && (
           <EditClientModal
             onClose={handleCloseEditModal}
