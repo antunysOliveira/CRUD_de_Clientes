@@ -2,11 +2,6 @@
 Projeto base para construção de site utilizando o **Vite, Tailwindcss, React Router, Sass e React lazy**
 
 ---
-## Visualizar demonstração
-[DEMO](https://template-vitejs-react-swc-ts.up.railway.app)
-
-
----
 ## **- Checklist**
 **Instalar Vite**
 - [ ] :books: `yarn create vite my-app --template react-swc-ts`
@@ -14,16 +9,6 @@ Projeto base para construção de site utilizando o **Vite, Tailwindcss, React R
 #### **.gitignore**
 
 - [ ] :heavy_plus_sign: adicionar linha `*.webp:Zone.Identifier` no .gitignore
-
-
-#### **index.html**
-
-- [ ] :pencil2: Alterar `lang="en"`  para `lang="pt-BR"`
-- [ ] :pencil2: Alterar `<title>Nome</title>`
-- [ ] :pencil2: Adicionar description `<meta name="description" content="Descrição aqui">`
-- [ ] :pencil2: Alterar favicon
-- [ ] [:eyes: Visualizar arquivo :link:](https://github.com/joseonofre/todo-vitejs-projects/blob/main/index.html)
-
 
 ---
 ## **- Intalação de pacotes** 
