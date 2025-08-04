@@ -22,6 +22,7 @@ export default function App() {
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchClients();
@@ -93,6 +94,16 @@ export default function App() {
     }
   }
 
+  const filteredClients = clients.filter(client => {
+    const term = searchTerm.toLowerCase();
+    return (
+      client.name.toLowerCase().includes(term) ||
+      client.email.toLowerCase().includes(term) ||
+      (client.phone || "").toLowerCase().includes(term) ||
+      (client.company || "").toLowerCase().includes(term)
+    );
+  });
+
   const pageVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -151,7 +162,6 @@ export default function App() {
             Adicionar Cliente
           </button>
         </motion.div>
-
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
           <div className="p-6">
             {loading && (
@@ -164,7 +174,15 @@ export default function App() {
                 {error}
               </div>
             )}
-
+            <div className="mb-4">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e?.target?.value)}
+                placeholder="Buscar por nome, e-mail, telefone ou empresa..."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white transition-colors duration-300"
+              />
+            </div>
             {!loading && !error && (
               <motion.div
                 className="overflow-x-auto"
@@ -183,9 +201,9 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {clients.map((client: any, index: any) => (
+                    {filteredClients.map((client: any) => (
                       <motion.tr
-                        key={index}
+                        key={client.id}
                         className="border-b transition duration-300 ease-in-out hover:bg-gray-100 dark:border-neutral-700 dark:hover:bg-gray-700"
                         variants={tableRowVariants}
                         layout
@@ -216,10 +234,12 @@ export default function App() {
                 </table>
               </motion.div>
             )}
-
-            {!loading && clients.length === 0 && (
+            {!loading && filteredClients.length === 0 && (
               <div className="text-center py-10 text-gray-500 dark:text-gray-400">
-                Nenhum cliente encontrado. Que tal adicionar um novo?
+                {searchTerm
+                  ? "Nenhum cliente encontrado para sua busca."
+                  : "Nenhum cliente cadastrado. Que tal adicionar um novo?"
+                }
               </div>
             )}
           </div>
