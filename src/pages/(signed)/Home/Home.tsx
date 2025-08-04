@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-
+import VMasker from "vanilla-masker";
 import Api from "@/services/api";
 import CreateClientModal from '@/components/createClientModal/creatClient';
 import ConfirmationModal from '@/components/confirmationModal/confirmationModal';
 import EditClientModal from '@/components/editClientModal/editClientModal';
-
+import icon from "@/assets/images/icon-seta.png"
 interface Client {
   id: string;
   name: string;
@@ -26,9 +26,10 @@ export default function App() {
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
-
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 8;
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -39,6 +40,10 @@ export default function App() {
       clearTimeout(handler);
     };
   }, [searchTerm]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm]);
 
   const queryClient = useQueryClient();
 
@@ -63,6 +68,17 @@ export default function App() {
       (client.company || "").toLowerCase().includes(term)
     );
   }, [allClients, debouncedSearchTerm]);
+
+  const { paginatedClients, totalPages } = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+
+    const paginated = filteredClients.slice(startIndex, endIndex);
+    const total = Math.ceil(filteredClients.length / ITEMS_PER_PAGE);
+
+    return { paginatedClients: paginated, totalPages: total };
+  }, [filteredClients, currentPage]);
+
 
   const deleteClientMutation = useMutation({
     mutationFn: (clientId: string) => Api.DeleteClient(clientId),
@@ -101,7 +117,7 @@ export default function App() {
   const pageVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.2 } } };
   const headerVariants = { hidden: { opacity: 0, y: -20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } };
   const tableContainerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.05 } } };
-  const tableRowVariants = { hidden: { opacity: 0, x: -10 }, visible: { opacity: 1, x: 0 } };
+  const tableRowVariants = { hidden: { opacity: 0, x: -2 }, visible: { opacity: 1, x: 0 } };
 
   return (
     <motion.div
@@ -154,64 +170,90 @@ export default function App() {
               </div>
             )}
 
-            {!isLoading && !error && (
-              <motion.div
-                className="overflow-x-auto"
-                variants={tableContainerVariants}
-                initial="hidden"
-                animate="visible"
-              >
-                <table className="min-w-full text-left text-sm font-light text-gray-700 dark:text-gray-200">
-                  <thead className="border-b font-medium dark:border-neutral-700 bg-gray-50 dark:bg-gray-700/50">
-                    <tr>
-                      <th scope="col" className="px-3 py-4">Nome</th>
-                      <th scope="col" className="px-3 py-4">Email</th>
-                      <th scope="col" className="px-3 py-4">Telefone</th>
-                      <th scope="col" className="px-3 py-4">Empresa</th>
-                      <th scope="col" className="px-3 py-4">Gerenciar</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <AnimatePresence>
-                      {filteredClients.map((client) => (
-                        <motion.tr
-                          key={client.id}
-                          className="border-b transition duration-300 ease-in-out hover:bg-gray-100 dark:border-neutral-700 dark:hover:bg-gray-700"
-                          variants={tableRowVariants}
-                          initial="hidden"
-                          animate="visible"
-                          exit="hidden"
-                          layout
-                        >
-                          <td className="whitespace-nowrap px-3 py-4 font-medium">{client.name || "..."}</td>
-                          <td className="whitespace-nowrap px-3 py-4">{client.email || "..."}</td>
-                          <td className="whitespace-nowrap px-3 py-4">{client.phone || "..."}</td>
-                          <td className="whitespace-nowrap px-3 py-4">{client.company || "..."}</td>
-                          <td className="whitespace-nowrap px-3 py-4">
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => handleOpenDeleteModal(client.id)}
-                                className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white transition-all duration-200 ease-in-out hover:bg-red-700 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-                              >
-                                Deletar
-                              </button>
-                              <button
-                                onClick={() => handleOpenEditModal(client)}
-                                className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-semibold text-gray-700 transition-all duration-200 ease-in-out hover:bg-gray-200 hover:text-black active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
-                              >
-                                Editar
-                              </button>
-                            </div>
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </AnimatePresence>
-                  </tbody>
-                </table>
-              </motion.div>
+            {!isLoading && !error && paginatedClients.length > 0 && (
+              <>
+                <motion.div
+                  className="overflow-x-auto"
+                  variants={tableContainerVariants}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  <table className="min-w-full text-left text-sm font-light text-gray-700 dark:text-gray-200">
+                    <thead className="border-b font-medium dark:border-neutral-700 bg-gray-50 dark:bg-gray-700/50">
+                      <tr>
+                        <th scope="col" className="px-3 py-4">Nome</th>
+                        <th scope="col" className="px-3 py-4">Email</th>
+                        <th scope="col" className="px-3 py-4">Telefone</th>
+                        <th scope="col" className="px-3 py-4">Empresa</th>
+                        <th scope="col" className="px-3 py-4">Gerenciar</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <AnimatePresence>
+                        {paginatedClients.map((client) => (
+                          <motion.tr
+                            key={client.id}
+                            className="border-b hover:bg-gray-100 dark:border-neutral-700 dark:hover:bg-gray-700"
+                            variants={tableRowVariants}
+                            initial="hidden"
+                            animate="visible"
+                            exit="hidden"
+                            layout
+                          >
+                            <td className="whitespace-nowrap px-3 py-4 font-medium">{client.name || "..."}</td>
+                            <td className="whitespace-nowrap px-3 py-4">{client.email || "..."}</td>
+                            <td className="whitespace-nowrap px-3 py-4">
+                              {client.phone ? VMasker.toPattern(client.phone, '(99) 99999-9999') : '...'}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-4">{client.company || "..."}</td>
+                            <td className="whitespace-nowrap px-3 py-4">
+                              <div className="flex items-center space-x-2">
+                                <button
+                                  onClick={() => handleOpenDeleteModal(client.id)}
+                                  className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white transition-all duration-200 ease-in-out hover:bg-red-700 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                                >
+                                  Deletar
+                                </button>
+                                <button
+                                  onClick={() => handleOpenEditModal(client)}
+                                  className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-semibold text-gray-700 transition-all duration-200 ease-in-out hover:bg-gray-200 hover:text-black active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                                >
+                                  Editar
+                                </button>
+                              </div>
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </AnimatePresence>
+                    </tbody>
+                  </table>
+                </motion.div>
+
+                <div className="mt-6 flex items-center justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Página {currentPage} de {totalPages > 0 ? totalPages : 1}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="px-4text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <img className='w-6 rotate-180' src={icon} alt="" />
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      className="px-4 text-sm font-medium  rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <img className='w-6' src={icon} alt="" />
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
 
-            {!isLoading && filteredClients.length === 0 && (
+            {!isLoading && !error && paginatedClients.length === 0 && (
               <div className="text-center py-10 text-gray-500 dark:text-gray-400">
                 {debouncedSearchTerm
                   ? "Nenhum cliente encontrado para sua busca."
