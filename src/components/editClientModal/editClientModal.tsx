@@ -6,6 +6,7 @@ import { useForm, SubmitHandler, Controller } from "react-hook-form";
 import { AnimatedErrorMessage } from '../errorMsg/errorMsg';
 import { useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNotification } from '../notficationModal/notficationModal';
 
 interface ClientData {
     id: string;
@@ -41,6 +42,7 @@ const SpinnerIcon = () => (
 
 export default function EditClientModal({ onClose, client }: EditClientModalProps) {
     const { setError } = useLayout();
+    const { addNotification } = useNotification()
     const {
         register,
         handleSubmit,
@@ -65,6 +67,7 @@ export default function EditClientModal({ onClose, client }: EditClientModalProp
     const updateClientMutation = useMutation({
         mutationFn: ({ id, data }: UpdateClientVariables) => Api.UpdateClient(id, data),
         onSuccess: () => {
+            addNotification('Cliente editado com sucesso!', 'success');
             queryClient.invalidateQueries({ queryKey: ['clients'] });
             reset();
             onClose();

@@ -7,6 +7,7 @@ import CreateClientModal from '@/components/createClientModal/creatClient';
 import ConfirmationModal from '@/components/confirmationModal/confirmationModal';
 import EditClientModal from '@/components/editClientModal/editClientModal';
 import icon from "@/assets/images/icon-seta.png"
+import { useNotification } from '@/components/notficationModal/notficationModal';
 interface Client {
   id: string;
   name: string;
@@ -21,6 +22,7 @@ async function fetchAllClients(): Promise<Client[]> {
 }
 
 export default function App() {
+  const { addNotification } = useNotification();
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
@@ -83,6 +85,7 @@ export default function App() {
   const deleteClientMutation = useMutation({
     mutationFn: (clientId: string) => Api.DeleteClient(clientId),
     onSuccess: () => {
+      addNotification('Cliente excluído com sucesso!', 'success');
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       handleCloseDeleteModal();
     },

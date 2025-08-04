@@ -4,6 +4,7 @@ import { useState } from "react";
 import Api from "@/services/api";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { AnimatedErrorMessage } from "../errorMsg/errorMsg";
+import { useNotification } from "../notficationModal/notficationModal";
 
 type FormValues = {
     name: string;
@@ -18,6 +19,7 @@ type RegisterFormProps = {
 export default function FormRegister({ setStep }: RegisterFormProps) {
     const { setError } = useLayout();
     const [isLoading, setIsLoading] = useState(false);
+    const { addNotification } = useNotification();
 
     const {
         register,
@@ -36,6 +38,7 @@ export default function FormRegister({ setStep }: RegisterFormProps) {
         setIsLoading(true);
         try {
             await Api.RegisterUser(data);
+            addNotification('Cadastro feito com sucesso!', 'success');
             reset();
             setStep('login');
         } catch (error: any) {
